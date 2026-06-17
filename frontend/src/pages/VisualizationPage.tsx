@@ -17,6 +17,7 @@ function VisualizationPage() {
   const [selectedMode, setSelectedMode] = useState(0)
   const [showModeShape, setShowModeShape] = useState(false)
   const [showContourLines, setShowContourLines] = useState(false)
+  const [isAnimating, setIsAnimating] = useState(false)
   const [loading, setLoading] = useState(false)
 
   const selectedStone = stones.find(s => s.id === selectedStoneId) || null
@@ -82,6 +83,7 @@ function VisualizationPage() {
               modeIndex={selectedMode}
               showModeShape={showModeShape}
               showContourLines={showContourLines}
+              isAnimating={isAnimating}
             />
           </div>
 
@@ -180,6 +182,15 @@ function VisualizationPage() {
                   className="w-4 h-4 accent-bronze"
                 />
                 <span className="text-bronze/90 text-sm">显示等高线</span>
+              </label>
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isAnimating}
+                  onChange={(e) => setIsAnimating(e.target.checked)}
+                  className="w-4 h-4 accent-bronze"
+                />
+                <span className="text-bronze/90 text-sm">播放振动动画</span>
               </label>
             </div>
           </div>
