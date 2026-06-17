@@ -3,7 +3,83 @@ package fem
 import (
 	"fmt"
 	"math"
+	"runtime"
+	"sync"
 )
+
+type FEMResult struct {
+	Freqs []float64
+	Modes [][][]float64
+	Err   error
+}
+
+type femTask struct {
+	engine *FEMEngine
+	result chan<- FEMResult
+}
+
+var (
+	femWorkerPool femWorkerPoolType
+
+	defaultMaxWorkers = runtime.NumCPU()
+
+	once sync.Once
+)
+
+type femWorkerPoolType struct {
+	tasks    chan femTask
+	wg       sync.WaitGroup
+	maxWorkers int
+	mu       sync.Mutex
+	started  bool
+}
+
+func initWorkerPool() {
+	once.Do(func() {
+		femWorkerPool.maxWorkers = defaultMaxWorkers
+		femWorkerPool.tasks = make(chan femTask, 64)
+		femWorkerPool.started = true
+		for i := 0; i < femWorkerPool.maxWorkers; i++ {
+			femWorkerPool.wg.Add(1)
+			go femWorker()
+		}
+	})
+}
+
+func femWorker() {
+	defer femWorkerPool.wg.Done()
+	for task := range femWorkerPool.tasks {
+		freqs, modes, err := task.engine.Solve()
+		task.result <- FEMResult{
+			Freqs: freqs,
+			Modes: modes,
+			Err:   err,
+		}
+	}
+}
+
+func SetMaxWorkers(n int) {
+	if n <= 0 {
+		n = 1
+	}
+	femWorkerPool.mu.Lock()
+	femWorkerPool.maxWorkers = n
+	femWorkerPool.mu.Unlock()
+}
+
+func GetMaxWorkers() int {
+	femWorkerPool.mu.Lock()
+	defer femWorkerPool.mu.Unlock()
+	return femWorkerPool.maxWorkers
+}
+
+func ShutdownWorkerPool() {
+	if femWorkerPool.started {
+		close(femWorkerPool.tasks)
+		femWorkerPool.wg.Wait()
+		femWorkerPool.started = false
+	}
+}
 
 type FEMEngine struct {
 	NX, NY    int
@@ -162,6 +238,28 @@ func (f *FEMEngine) Solve() (freqs []float64, modes [][][]float64, err error) {
 	}
 
 	return freqs, modes, nil
+}
+
+func (f *FEMEngine) SolveAsync() <-chan FEMResult {
+	initWorkerPool()
+	resultCh := make(chan FEMResult, 1)
+	task := femTask{
+		engine: f,
+		result: resultCh,
+	}
+	select {
+	case femWorkerPool.tasks <- task:
+	default:
+		go func() {
+			freqs, modes, err := f.Solve()
+			resultCh <- FEMResult{
+				Freqs: freqs,
+				Modes: modes,
+				Err:   err,
+			}
+		}()
+	}
+	return resultCh
 }
 
 func (f *FEMEngine) ComputeFirstFrequency() float64 {

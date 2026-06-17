@@ -1,8 +1,11 @@
 package fem
 
 import (
+	"fmt"
 	"math"
+	"sync"
 	"testing"
+	"time"
 )
 
 func TestNewFEMEngine_Normal(t *testing.T) {
@@ -320,5 +323,191 @@ func TestGenerateModePairs_LargeCount(t *testing.T) {
 			t.Errorf("duplicate mode pair: (%d,%d)", p[0], p[1])
 		}
 		seen[p] = true
+	}
+}
+
+func TestSolveAsync_Basic(t *testing.T) {
+	engine := NewFEMEngine(20, 10, 0.6, 0.4, []float64{0.02}, 5e10, 0.25, 2650.0)
+	engine.SetBoundaryType("free")
+
+	resultCh := engine.SolveAsync()
+	select {
+	case result := <-resultCh:
+		if result.Err != nil {
+			t.Fatalf("unexpected error: %v", result.Err)
+		}
+		if len(result.Freqs) != 6 {
+			t.Errorf("expected 6 frequencies, got %d", len(result.Freqs))
+		}
+		if len(result.Modes) != 6 {
+			t.Errorf("expected 6 mode shapes, got %d", len(result.Modes))
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for async result")
+	}
+}
+
+func TestSolveAsync_MatchesSync(t *testing.T) {
+	engine := NewFEMEngine(20, 10, 0.6, 0.4, []float64{0.02}, 5e10, 0.25, 2650.0)
+	engine.SetBoundaryType("free")
+
+	syncFreqs, syncModes, syncErr := engine.Solve()
+	if syncErr != nil {
+		t.Fatalf("sync solve failed: %v", syncErr)
+	}
+
+	engine2 := NewFEMEngine(20, 10, 0.6, 0.4, []float64{0.02}, 5e10, 0.25, 2650.0)
+	engine2.SetBoundaryType("free")
+	resultCh := engine2.SolveAsync()
+
+	select {
+	case result := <-resultCh:
+		if result.Err != nil {
+			t.Fatalf("async solve failed: %v", result.Err)
+		}
+		for i := range syncFreqs {
+			if math.Abs(result.Freqs[i]-syncFreqs[i]) > 1e-6 {
+				t.Errorf("freq[%d] mismatch: async=%f, sync=%f", i, result.Freqs[i], syncFreqs[i])
+			}
+		}
+		if len(result.Modes) != len(syncModes) {
+			t.Errorf("mode count mismatch")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for async result")
+	}
+}
+
+func TestSolveAsync_Concurrent(t *testing.T) {
+	numTasks := 10
+	var wg sync.WaitGroup
+	errors := make(chan error, numTasks)
+
+	for i := 0; i < numTasks; i++ {
+		wg.Add(1)
+		go func(taskID int) {
+			defer wg.Done()
+			h := 0.015 + float64(taskID)*0.001
+			engine := NewFEMEngine(15, 8, 0.5, 0.35, []float64{h}, 5e10, 0.25, 2650.0)
+			engine.SetBoundaryType("free")
+
+			resultCh := engine.SolveAsync()
+			select {
+			case result := <-resultCh:
+				if result.Err != nil {
+					errors <- result.Err
+					return
+				}
+				if len(result.Freqs) != 6 {
+					errors <- fmt.Errorf("task %d: expected 6 freqs, got %d", taskID, len(result.Freqs))
+					return
+				}
+				if result.Freqs[0] <= 0 {
+					errors <- fmt.Errorf("task %d: base freq should be positive, got %f", taskID, result.Freqs[0])
+					return
+				}
+			case <-time.After(10 * time.Second):
+				errors <- fmt.Errorf("task %d: timeout", taskID)
+				return
+			}
+		}(i)
+	}
+
+	wg.Wait()
+	close(errors)
+
+	for err := range errors {
+		t.Error(err)
+	}
+}
+
+func TestSolveAsync_ErrorCase(t *testing.T) {
+	engine := NewFEMEngine(1, 1, 0.6, 0.4, []float64{0.02}, 5e10, 0.25, 2650.0)
+
+	resultCh := engine.SolveAsync()
+	select {
+	case result := <-resultCh:
+		if result.Err == nil {
+			t.Error("expected error for invalid mesh, got nil")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for async result")
+	}
+}
+
+func TestFEMResult_Structure(t *testing.T) {
+	result := FEMResult{
+		Freqs: []float64{100.0, 200.0},
+		Modes: [][][]float64{{{1.0}}},
+		Err:   nil,
+	}
+
+	if len(result.Freqs) != 2 {
+		t.Errorf("expected 2 freqs, got %d", len(result.Freqs))
+	}
+	if len(result.Modes) != 1 {
+		t.Errorf("expected 1 mode, got %d", len(result.Modes))
+	}
+	if result.Err != nil {
+		t.Errorf("expected nil error, got %v", result.Err)
+	}
+}
+
+func TestGetMaxWorkers_Default(t *testing.T) {
+	workers := GetMaxWorkers()
+	if workers <= 0 {
+		t.Errorf("expected positive workers, got %d", workers)
+	}
+}
+
+func TestSetMaxWorkers_Valid(t *testing.T) {
+	original := GetMaxWorkers()
+	defer SetMaxWorkers(original)
+
+	SetMaxWorkers(2)
+	if GetMaxWorkers() != 2 {
+		t.Errorf("expected 2 workers, got %d", GetMaxWorkers())
+	}
+
+	SetMaxWorkers(0)
+	if GetMaxWorkers() != 1 {
+		t.Errorf("expected 1 worker for 0 input, got %d", GetMaxWorkers())
+	}
+}
+
+func TestSolveAsync_EmptyThickness(t *testing.T) {
+	engine := NewFEMEngine(20, 10, 0.6, 0.4, []float64{}, 5e10, 0.25, 2650.0)
+
+	resultCh := engine.SolveAsync()
+	select {
+	case result := <-resultCh:
+		if result.Err == nil {
+			t.Error("expected error for empty thickness, got nil")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for async result")
+	}
+}
+
+func TestSolveAsync_BoundaryTypes(t *testing.T) {
+	boundaries := []string{"free", "simply_supported", "clamped"}
+	for _, btype := range boundaries {
+		t.Run(btype, func(t *testing.T) {
+			engine := NewFEMEngine(15, 10, 0.6, 0.4, []float64{0.02}, 5e10, 0.25, 2650.0)
+			engine.SetBoundaryType(btype)
+
+			resultCh := engine.SolveAsync()
+			select {
+			case result := <-resultCh:
+				if result.Err != nil {
+					t.Fatalf("%s boundary failed: %v", btype, result.Err)
+				}
+				if result.Freqs[0] <= 0 {
+					t.Errorf("%s boundary: freq should be positive", btype)
+				}
+			case <-time.After(5 * time.Second):
+				t.Fatalf("%s boundary: timeout", btype)
+			}
+		})
 	}
 }
