@@ -3,9 +3,21 @@ package ensemble_acoustics
 import (
 	"bianqing-simulator/internal/model"
 	"math"
+	"runtime"
+	"sync"
 )
 
 const speedOfSound = 343.0
+
+type stonePrecompute struct {
+	amp       float64
+	cosPhase  float64
+	sinPhase  float64
+	posX      float64
+	posY      float64
+	waveNumK  float64
+	active    bool
+}
 
 func SimulateEnsemble(req model.EnsembleRequest) (*model.EnsembleResult, error) {
 	if req.GridSize <= 0 {
@@ -29,6 +41,15 @@ func SimulateEnsemble(req model.EnsembleRequest) (*model.EnsembleResult, error) 
 		return createEmptyResult(req), nil
 	}
 
+	useParallel := req.GridSize >= 32 && len(activeStones) >= 2
+
+	if useParallel {
+		return simulateEnsembleParallel(req, activeStones)
+	}
+	return simulateEnsembleSerial(req, activeStones)
+}
+
+func simulateEnsembleSerial(req model.EnsembleRequest, activeStones []model.EnsembleStone) (*model.EnsembleResult, error) {
 	pressure := make([][]float64, req.GridSize)
 	intensity := make([][]float64, req.GridSize)
 	for i := range pressure {
@@ -38,30 +59,46 @@ func SimulateEnsemble(req model.EnsembleRequest) (*model.EnsembleResult, error) 
 
 	dx := req.FieldWidth / float64(req.GridSize-1)
 	dy := req.FieldHeight / float64(req.GridSize-1)
-
 	waveNumber := 2 * math.Pi * req.Frequency / speedOfSound
+
+	pre := make([]stonePrecompute, len(activeStones))
+	for i, s := range activeStones {
+		pre[i] = stonePrecompute{
+			amp:      s.Amplitude,
+			cosPhase: math.Cos(s.Phase),
+			sinPhase: math.Sin(s.Phase),
+			posX:     s.PositionX,
+			posY:     s.PositionY,
+			waveNumK: waveNumber,
+			active:   true,
+		}
+	}
 
 	var maxP, minP float64 = math.Inf(-1), math.Inf(1)
 
 	for i := 0; i < req.GridSize; i++ {
+		px := float64(i)*dx - req.FieldWidth/2
 		for j := 0; j < req.GridSize; j++ {
-			px := float64(i)*dx - req.FieldWidth/2
 			py := float64(j)*dy - req.FieldHeight/2
 
 			real := 0.0
 			imag := 0.0
 
-			for _, stone := range activeStones {
-				distance := math.Hypot(px-stone.PositionX, py-stone.PositionY)
+			for _, s := range pre {
+				dxS := px - s.posX
+				dyS := py - s.posY
+				distance := math.Sqrt(dxS*dxS + dyS*dyS)
 				if distance < 0.01 {
 					distance = 0.01
 				}
 
-				phase := waveNumber*distance + stone.Phase
-				amplitude := stone.Amplitude / math.Sqrt(distance)
+				amp := s.amp / math.Sqrt(distance)
+				kDist := s.waveNumK * distance
+				cosKD := math.Cos(kDist)
+				sinKD := math.Sin(kDist)
 
-				real += amplitude * math.Cos(phase)
-				imag += amplitude * math.Sin(phase)
+				real += amp * (cosKD*s.cosPhase - sinKD*s.sinPhase)
+				imag += amp * (sinKD*s.cosPhase + cosKD*s.sinPhase)
 			}
 
 			p := math.Hypot(real, imag)
@@ -74,6 +111,132 @@ func SimulateEnsemble(req model.EnsembleRequest) (*model.EnsembleResult, error) 
 			if p < minP {
 				minP = p
 			}
+		}
+	}
+
+	nodes, antinodes := findExtrema(pressure, dx, dy, req.GridSize, req.FieldWidth, req.FieldHeight)
+
+	result := &model.EnsembleResult{
+		GridSize:    req.GridSize,
+		FieldWidth:  req.FieldWidth,
+		FieldHeight: req.FieldHeight,
+		Pressure:    pressure,
+		Intensity:   intensity,
+		Nodes:       nodes,
+		Antinodes:   antinodes,
+		Stones:      activeStones,
+		MaxPressure: maxP,
+		MinPressure: minP,
+	}
+
+	return result, nil
+}
+
+func simulateEnsembleParallel(req model.EnsembleRequest, activeStones []model.EnsembleStone) (*model.EnsembleResult, error) {
+	pressure := make([][]float64, req.GridSize)
+	intensity := make([][]float64, req.GridSize)
+	for i := range pressure {
+		pressure[i] = make([]float64, req.GridSize)
+		intensity[i] = make([]float64, req.GridSize)
+	}
+
+	dx := req.FieldWidth / float64(req.GridSize-1)
+	dy := req.FieldHeight / float64(req.GridSize-1)
+	waveNumber := 2 * math.Pi * req.Frequency / speedOfSound
+
+	pre := make([]stonePrecompute, len(activeStones))
+	for i, s := range activeStones {
+		pre[i] = stonePrecompute{
+			amp:      s.Amplitude,
+			cosPhase: math.Cos(s.Phase),
+			sinPhase: math.Sin(s.Phase),
+			posX:     s.PositionX,
+			posY:     s.PositionY,
+			waveNumK: waveNumber,
+			active:   true,
+		}
+	}
+
+	numWorkers := runtime.NumCPU()
+	if numWorkers > req.GridSize {
+		numWorkers = req.GridSize
+	}
+
+	rowResults := make([]struct{ maxP, minP float64 }, numWorkers)
+	for i := range rowResults {
+		rowResults[i].maxP = math.Inf(-1)
+		rowResults[i].minP = math.Inf(1)
+	}
+
+	var wg sync.WaitGroup
+	rowsPerWorker := (req.GridSize + numWorkers - 1) / numWorkers
+
+	for w := 0; w < numWorkers; w++ {
+		wg.Add(1)
+		go func(workerID int) {
+			defer wg.Done()
+			startRow := workerID * rowsPerWorker
+			endRow := startRow + rowsPerWorker
+			if endRow > req.GridSize {
+				endRow = req.GridSize
+			}
+
+			localMax := math.Inf(-1)
+			localMin := math.Inf(1)
+
+			for i := startRow; i < endRow; i++ {
+				px := float64(i)*dx - req.FieldWidth/2
+				for j := 0; j < req.GridSize; j++ {
+					py := float64(j)*dy - req.FieldHeight/2
+
+					real := 0.0
+					imag := 0.0
+
+					for _, s := range pre {
+						dxS := px - s.posX
+						dyS := py - s.posY
+						distance := math.Sqrt(dxS*dxS + dyS*dyS)
+						if distance < 0.01 {
+							distance = 0.01
+						}
+
+						amp := s.amp / math.Sqrt(distance)
+						kDist := s.waveNumK * distance
+						cosKD := math.Cos(kDist)
+						sinKD := math.Sin(kDist)
+
+						real += amp * (cosKD*s.cosPhase - sinKD*s.sinPhase)
+						imag += amp * (sinKD*s.cosPhase + cosKD*s.sinPhase)
+					}
+
+					p := math.Sqrt(real*real + imag*imag)
+					pressure[i][j] = p
+					intensity[i][j] = p * p
+
+					if p > localMax {
+						localMax = p
+					}
+					if p < localMin {
+						localMin = p
+					}
+				}
+			}
+
+			rowResults[workerID].maxP = localMax
+			rowResults[workerID].minP = localMin
+		}(w)
+	}
+
+	wg.Wait()
+
+	maxP := math.Inf(-1)
+	minP := math.Inf(1)
+	for _, r := range rowResults {
+		if r.maxP > maxP {
+			maxP = r.maxP
+		}
+		if r.minP < minP {
+			minP = r.minP
 		}
 	}
 

@@ -1,6 +1,7 @@
 package era_comparison
 
 import (
+	"bianqing-simulator/internal/material_comparison"
 	"math"
 	"testing"
 )
@@ -102,9 +103,9 @@ func TestGenerateDecayCurve_Normal(t *testing.T) {
 
 	envelopeSum := 0.0
 	for i, v := range curve {
-		t := float64(i) * 5.0 / 100.0
-		envelope := math.Exp(-1.0/(1.5+2650.0*0.0005) * t)
-		expectedAbs := envelope * math.Abs(math.Sin(2*math.Pi*1.0*t))
+		tt := float64(i) * 5.0 / 100.0
+		envelope := math.Exp(-1.0/(1.5+2650.0*0.0005) * tt)
+		expectedAbs := envelope * math.Abs(math.Sin(2*math.Pi*1.0*tt))
 		if math.Abs(v) > expectedAbs+0.01 {
 			t.Errorf("curve[%d]=%f exceeds expected envelope*oscillation=%f", i, v, expectedAbs)
 		}
@@ -263,14 +264,20 @@ func TestModernInstruments_AllDefined(t *testing.T) {
 		if inst.Name == "" {
 			t.Errorf("instrument %s has empty name", typ)
 		}
-		if inst.ElasticMod <= 0 {
-			t.Errorf("instrument %s has invalid elastic_mod: %f", typ, inst.ElasticMod)
-		}
-		if inst.Density <= 0 {
-			t.Errorf("instrument %s has invalid density: %f", typ, inst.Density)
+		if inst.Material == "" {
+			t.Errorf("instrument %s has empty material", typ)
 		}
 		if inst.Thickness <= 0 {
 			t.Errorf("instrument %s has invalid thickness: %f", typ, inst.Thickness)
+		}
+		if inst.Width <= 0 {
+			t.Errorf("instrument %s has invalid width: %f", typ, inst.Width)
+		}
+		if inst.Standard == "" {
+			t.Errorf("instrument %s missing standard reference", typ)
+		}
+		if inst.RefFreq <= 0 {
+			t.Errorf("instrument %s has invalid reference frequency: %f", typ, inst.RefFreq)
 		}
 	}
 }
@@ -279,9 +286,64 @@ func TestModernInstruments_MetalDenserThanWood(t *testing.T) {
 	glock := modernInstruments["glockenspiel"]
 	xylo := modernInstruments["xylophone"]
 
-	if glock.Density <= xylo.Density {
-		t.Errorf("glockenspiel (steel, %f) should be denser than xylophone (rosewood, %f)",
-			glock.Density, xylo.Density)
+	glockDensity := material_comparison.GetMaterialDensity(glock.Material)
+	xyloDensity := material_comparison.GetMaterialDensity(xylo.Material)
+
+	if glockDensity <= xyloDensity {
+		t.Errorf("glockenspiel (%s, %f) should be denser than xylophone (%s, %f)",
+			glock.Material, glockDensity, xylo.Material, xyloDensity)
+	}
+}
+
+func TestModernInstruments_UnifiedMaterialStandard(t *testing.T) {
+	instruments := []string{"glockenspiel", "xylophone", "bronze_bell"}
+
+	for _, instType := range instruments {
+		inst := modernInstruments[instType]
+
+		e := material_comparison.GetMaterialElasticMod(inst.Material)
+		rho := material_comparison.GetMaterialDensity(inst.Material)
+		nu := material_comparison.GetMaterialPoisson(inst.Material)
+
+		if e <= 0 {
+			t.Errorf("instrument %s material %s has invalid E: %f", instType, inst.Material, e)
+		}
+		if rho <= 0 {
+			t.Errorf("instrument %s material %s has invalid density: %f", instType, inst.Material, rho)
+		}
+		if nu <= 0 || nu >= 0.5 {
+			t.Errorf("instrument %s material %s has invalid Poisson ratio: %f", instType, inst.Material, nu)
+		}
+
+		prop, ok := material_comparison.GetMaterialProperty(inst.Material)
+		if !ok {
+			t.Errorf("instrument %s material %s not found in unified material library", instType, inst.Material)
+		}
+		if !prop.Measured {
+			t.Errorf("instrument %s material %s should have experimental measurement data", instType, inst.Material)
+		}
+	}
+}
+
+func TestGetGlockenspielConfig_UnifiedMaterial(t *testing.T) {
+	config := GetGlockenspielConfig()
+
+	if config.Material != "steel" {
+		t.Errorf("expected material steel, got %s", config.Material)
+	}
+
+	expectedE := material_comparison.GetMaterialElasticMod("steel")
+	expectedRho := material_comparison.GetMaterialDensity("steel")
+	expectedNu := material_comparison.GetMaterialPoisson("steel")
+
+	if config.ElasticMod != expectedE {
+		t.Errorf("config E mismatch: %f vs %f", config.ElasticMod, expectedE)
+	}
+	if config.Density != expectedRho {
+		t.Errorf("config density mismatch: %f vs %f", config.Density, expectedRho)
+	}
+	if config.Poisson != expectedNu {
+		t.Errorf("config Poisson mismatch: %f vs %f", config.Poisson, expectedNu)
 	}
 }
 

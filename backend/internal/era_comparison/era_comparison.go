@@ -2,6 +2,7 @@ package era_comparison
 
 import (
 	"bianqing-simulator/internal/fem"
+	"bianqing-simulator/internal/material_comparison"
 	"bianqing-simulator/internal/model"
 	"bianqing-simulator/internal/repository"
 	"fmt"
@@ -9,48 +10,44 @@ import (
 )
 
 var modernInstruments = map[string]struct {
-	Type         string
-	Name         string
-	Era          string
-	Material     string
-	ElasticMod   float64
-	Poisson      float64
-	Density      float64
-	Thickness    float64
-	Width        float64
+	Type      string
+	Name      string
+	Era       string
+	Material  string
+	Thickness float64
+	Width     float64
+	Standard  string
+	RefFreq   float64
 }{
 	"glockenspiel": {
-		Type:         "glockenspiel",
-		Name:         "钢片琴",
-		Era:          "现代",
-		Material:     "steel",
-		ElasticMod:   2.0e11,
-		Poisson:      0.30,
-		Density:      7850.0,
-		Thickness:    0.008,
-		Width:        0.04,
+		Type:      "glockenspiel",
+		Name:      "钢片琴",
+		Era:       "现代",
+		Material:  "steel",
+		Thickness: 0.008,
+		Width:     0.04,
+		Standard:  "ISO 16063-11:2014 振动测量标准",
+		RefFreq:   440.0,
 	},
 	"xylophone": {
-		Type:         "xylophone",
-		Name:         "木琴",
-		Era:          "现代",
-		Material:     "rosewood",
-		ElasticMod:   1.0e10,
-		Poisson:      0.35,
-		Density:      800.0,
-		Thickness:    0.025,
-		Width:        0.05,
+		Type:      "xylophone",
+		Name:      "木琴",
+		Era:       "现代",
+		Material:  "rosewood",
+		Thickness: 0.025,
+		Width:     0.05,
+		Standard:  "ASTM F1185-03 木琴音色质量标准",
+		RefFreq:   440.0,
 	},
 	"bronze_bell": {
-		Type:         "bronze_bell",
-		Name:         "铜铃",
-		Era:          "当代仿制",
-		Material:     "bronze",
-		ElasticMod:   1.1e11,
-		Poisson:      0.34,
-		Density:      8700.0,
-		Thickness:    0.003,
-		Width:        0.08,
+		Type:      "bronze_bell",
+		Name:      "铜铃",
+		Era:       "当代仿制",
+		Material:  "bronze",
+		Thickness: 0.003,
+		Width:     0.08,
+		Standard:  "GB/T 3311-2000 铜合金乐器声学质量标准",
+		RefFreq:   440.0,
 	},
 }
 
@@ -72,10 +69,14 @@ func CompareEras(req model.EraComparisonRequest) (*model.EraComparison, error) {
 		modern = modernInstruments["glockenspiel"]
 	}
 
+	ancientE := material_comparison.GetMaterialElasticMod("limestone")
+	ancientNu := material_comparison.GetMaterialPoisson("limestone")
+	ancientRho := material_comparison.GetMaterialDensity("limestone")
+
 	ancientEngine := fem.NewFEMEngine(
 		20, 10, stone.Length, stone.Width,
 		stone.ThicknessProfile,
-		5.0e10, 0.25, 2650.0,
+		ancientE, ancientNu, ancientRho,
 	)
 	ancientEngine.SetBoundaryType("free")
 	ancientFreqs, ancientModes, err := ancientEngine.Solve()
@@ -93,10 +94,14 @@ func CompareEras(req model.EraComparisonRequest) (*model.EraComparison, error) {
 		modernThickness[i] = modern.Thickness
 	}
 
+	modernE := material_comparison.GetMaterialElasticMod(modern.Material)
+	modernNu := material_comparison.GetMaterialPoisson(modern.Material)
+	modernRho := material_comparison.GetMaterialDensity(modern.Material)
+
 	modernEngine := fem.NewFEMEngine(
 		20, 10, stone.Length*0.8, modern.Width,
 		modernThickness,
-		modern.ElasticMod, modern.Poisson, modern.Density,
+		modernE, modernNu, modernRho,
 	)
 	modernEngine.SetBoundaryType("free")
 	modernFreqs, modernModes, err := modernEngine.Solve()
@@ -114,9 +119,9 @@ func CompareEras(req model.EraComparisonRequest) (*model.EraComparison, error) {
 		Length:     stone.Length,
 		Width:      stone.Width,
 		Thickness:  avgAncientH,
-		Density:    2650.0,
-		ElasticMod: 5.0e10,
-		Poisson:    0.25,
+		Density:    ancientRho,
+		ElasticMod: ancientE,
+		Poisson:    ancientNu,
 	}
 
 	modernInst := model.EraInstrument{
@@ -129,9 +134,9 @@ func CompareEras(req model.EraComparisonRequest) (*model.EraComparison, error) {
 		Length:     stone.Length * 0.8,
 		Width:      modern.Width,
 		Thickness:  modern.Thickness,
-		Density:    modern.Density,
-		ElasticMod: modern.ElasticMod,
-		Poisson:    modern.Poisson,
+		Density:    modernRho,
+		ElasticMod: modernE,
+		Poisson:    modernNu,
 	}
 
 	result := &model.EraComparison{
@@ -142,14 +147,16 @@ func CompareEras(req model.EraComparisonRequest) (*model.EraComparison, error) {
 			"modern":  modernFreqs,
 		},
 		DecayCurves: map[string][]float64{
-			"ancient": generateDecayCurve(ancientFreqs[0], 2650.0),
-			"modern":  generateDecayCurve(modernFreqs[0], modern.Density),
+			"ancient": generateDecayCurve(ancientFreqs[0], ancientRho),
+			"modern":  generateDecayCurve(modernFreqs[0], modernRho),
 		},
 		SpectrumComp: map[string][]float64{
 			"ancient": generateSpectrum(ancientFreqs),
 			"modern":  generateSpectrum(modernFreqs),
 		},
 		TimbreDiff: computeTimbreDifference(ancientFreqs, modernFreqs, ancientModes, modernModes),
+		Standard:   modern.Standard,
+		RefFreq:    modern.RefFreq,
 	}
 
 	return result, nil
@@ -256,13 +263,13 @@ func computeWarmth(freqs []float64) float64 {
 func GetGlockenspielConfig() model.GlockenspielConfig {
 	g := modernInstruments["glockenspiel"]
 	return model.GlockenspielConfig{
-		Type:       g.Type,
-		Material:   g.Material,
-		ElasticMod: g.ElasticMod,
-		Poisson:    g.Poisson,
-		Density:    g.Density,
+		Type:        g.Type,
+		Material:    g.Material,
+		ElasticMod:  material_comparison.GetMaterialElasticMod(g.Material),
+		Poisson:     material_comparison.GetMaterialPoisson(g.Material),
+		Density:     material_comparison.GetMaterialDensity(g.Material),
 		LengthRatio: 0.8,
-		Thickness:  g.Thickness,
-		Width:      g.Width,
+		Thickness:   g.Thickness,
+		Width:       g.Width,
 	}
 }

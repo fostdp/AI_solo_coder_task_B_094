@@ -8,8 +8,8 @@ import (
 
 func TestGetMaterialList_ReturnsAllMaterials(t *testing.T) {
 	list := GetMaterialList()
-	if len(list) != 7 {
-		t.Fatalf("expected 7 materials, got %d", len(list))
+	if len(list) != 10 {
+		t.Fatalf("expected 10 materials, got %d", len(list))
 	}
 
 	keys := make(map[string]bool)
@@ -34,7 +34,7 @@ func TestGetMaterialList_ReturnsAllMaterials(t *testing.T) {
 		}
 	}
 
-	for _, expected := range []string{"limestone", "marble", "granite", "sandstone", "bluestone", "steel", "bronze"} {
+	for _, expected := range []string{"limestone", "marble", "granite", "sandstone", "bluestone", "steel", "bronze", "rosewood", "ebony", "maple"} {
 		if !keys[expected] {
 			t.Errorf("missing material: %s", expected)
 		}
@@ -412,6 +412,164 @@ func TestMaterialProperties_MetalDenserThanStone(t *testing.T) {
 		if materialProps[metal].Rho <= avgStoneDensity {
 			t.Errorf("metal %s (density=%f) should be denser than avg stone (%f)",
 				metal, materialProps[metal].Rho, avgStoneDensity)
+		}
+	}
+}
+
+func TestMaterialProperties_HaveExperimentalData(t *testing.T) {
+	materials := []string{"limestone", "marble", "granite", "sandstone", "bluestone", "steel", "bronze", "rosewood", "ebony", "maple"}
+
+	for _, mat := range materials {
+		prop, ok := materialProps[mat]
+		if !ok {
+			t.Fatalf("missing material: %s", mat)
+		}
+
+		if !prop.Measured {
+			t.Errorf("material %s should have measured=true (experimental data)", mat)
+		}
+
+		if prop.DataSrc == "" {
+			t.Errorf("material %s should have data source reference", mat)
+		}
+
+		if prop.TestMethod == "" {
+			t.Errorf("material %s should have test method description", mat)
+		}
+
+		if prop.Year <= 0 {
+			t.Errorf("material %s should have valid measurement year", mat)
+		}
+	}
+}
+
+func TestGetMaterialList_IncludesExperimentalData(t *testing.T) {
+	list := GetMaterialList()
+
+	for _, m := range list {
+		key := m["key"].(string)
+
+		dataSrc, ok := m["data_source"].(string)
+		if !ok || dataSrc == "" {
+			t.Errorf("material %s missing data_source field", key)
+		}
+
+		isMeasured, ok := m["is_measured"].(bool)
+		if !ok || !isMeasured {
+			t.Errorf("material %s should be measured", key)
+		}
+
+		testMethod, ok := m["test_method"].(string)
+		if !ok || testMethod == "" {
+			t.Errorf("material %s missing test_method field", key)
+		}
+
+		year, ok := m["measurement_year"].(int)
+		if !ok || year <= 0 {
+			t.Errorf("material %s has invalid measurement_year: %v", key, year)
+		}
+	}
+}
+
+func TestGetMaterialProperty_ValidMaterial(t *testing.T) {
+	prop, ok := GetMaterialProperty("limestone")
+	if !ok {
+		t.Fatal("should find limestone material")
+	}
+
+	if prop.E != 5.0e10 {
+		t.Errorf("expected E=5e10, got %f", prop.E)
+	}
+	if prop.Nu != 0.25 {
+		t.Errorf("expected Nu=0.25, got %f", prop.Nu)
+	}
+	if prop.Rho != 2650.0 {
+		t.Errorf("expected Rho=2650, got %f", prop.Rho)
+	}
+	if !prop.Measured {
+		t.Error("should be measured")
+	}
+}
+
+func TestGetMaterialProperty_InvalidMaterial(t *testing.T) {
+	_, ok := GetMaterialProperty("nonexistent")
+	if ok {
+		t.Error("should not find nonexistent material")
+	}
+}
+
+func TestGetMaterialHelpers(t *testing.T) {
+	tests := []struct {
+		material string
+		wantE    float64
+		wantNu   float64
+		wantRho  float64
+	}{
+		{"steel", 2.0e11, 0.30, 7850.0},
+		{"bronze", 1.1e11, 0.34, 8700.0},
+		{"limestone", 5.0e10, 0.25, 2650.0},
+		{"rosewood", 1.0e10, 0.35, 800.0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.material, func(t *testing.T) {
+			if GetMaterialElasticMod(tt.material) != tt.wantE {
+				t.Errorf("GetMaterialElasticMod(%s) = %f, want %f", tt.material, GetMaterialElasticMod(tt.material), tt.wantE)
+			}
+			if GetMaterialPoisson(tt.material) != tt.wantNu {
+				t.Errorf("GetMaterialPoisson(%s) = %f, want %f", tt.material, GetMaterialPoisson(tt.material), tt.wantNu)
+			}
+			if GetMaterialDensity(tt.material) != tt.wantRho {
+				t.Errorf("GetMaterialDensity(%s) = %f, want %f", tt.material, GetMaterialDensity(tt.material), tt.wantRho)
+			}
+		})
+	}
+}
+
+func TestGetMaterialHelpers_DefaultFallback(t *testing.T) {
+	e := GetMaterialElasticMod("invalid_material")
+	if e != 5.0e10 {
+		t.Errorf("invalid material should fall back to limestone E=5e10, got %f", e)
+	}
+
+	nu := GetMaterialPoisson("invalid_material")
+	if nu != 0.25 {
+		t.Errorf("invalid material should fall back to limestone Nu=0.25, got %f", nu)
+	}
+
+	rho := GetMaterialDensity("invalid_material")
+	if rho != 2650.0 {
+		t.Errorf("invalid material should fall back to limestone Rho=2650, got %f", rho)
+	}
+}
+
+func TestMaterialProperties_WoodMaterials(t *testing.T) {
+	woodMaterials := []string{"rosewood", "ebony", "maple"}
+
+	for _, mat := range woodMaterials {
+		prop, ok := materialProps[mat]
+		if !ok {
+			t.Fatalf("missing wood material: %s", mat)
+		}
+
+		if prop.Rho >= 2000 {
+			t.Errorf("wood %s density %f should be less than 2000", mat, prop.Rho)
+		}
+		if prop.E >= 5e10 {
+			t.Errorf("wood %s E %f should be less than 5e10", mat, prop.E)
+		}
+	}
+
+	if materialProps["ebony"].Rho <= materialProps["maple"].Rho {
+		t.Error("ebony should be denser than maple")
+	}
+}
+
+func TestMaterialProperties_ChineseNamesComplete(t *testing.T) {
+	for key := range materialProps {
+		name, ok := materialChineseNames[key]
+		if !ok || name == "" {
+			t.Errorf("material %s missing Chinese name", key)
 		}
 	}
 }

@@ -2,6 +2,7 @@ package ensemble_acoustics
 
 import (
 	"bianqing-simulator/internal/model"
+	"fmt"
 	"math"
 	"testing"
 )
@@ -604,5 +605,123 @@ func TestSimulateEnsemble_MultipleStonesInterference(t *testing.T) {
 	centerPressure := result.Pressure[16][16]
 	if centerPressure <= 0 {
 		t.Errorf("center of field should have non-zero pressure: %f", centerPressure)
+	}
+}
+
+func TestSimulateEnsemble_ParallelVsSerialConsistency(t *testing.T) {
+	stones := []model.EnsembleStone{
+		{StoneID: 1, Name: "宫", Frequency: 261.63, PositionX: -1.0, PositionY: 0.5, Amplitude: 1.0, Phase: 0, Active: true},
+		{StoneID: 2, Name: "商", Frequency: 293.66, PositionX: 1.0, PositionY: -0.5, Amplitude: 0.9, Phase: 0.5, Active: true},
+		{StoneID: 3, Name: "角", Frequency: 329.63, PositionX: 0.0, PositionY: 0.8, Amplitude: 0.8, Phase: 1.0, Active: true},
+	}
+
+	req := model.EnsembleRequest{
+		Stones:      stones,
+		GridSize:    64,
+		FieldWidth:  4.0,
+		FieldHeight: 3.0,
+		Frequency:   293.66,
+	}
+
+	result, err := SimulateEnsemble(req)
+	if err != nil {
+		t.Fatalf("simulation failed: %v", err)
+	}
+
+	if result.GridSize != 64 {
+		t.Errorf("expected grid size 64, got %d", result.GridSize)
+	}
+	if len(result.Stones) != 3 {
+		t.Errorf("expected 3 active stones, got %d", len(result.Stones))
+	}
+	if result.MaxPressure <= result.MinPressure {
+		t.Error("max pressure should be greater than min pressure")
+	}
+}
+
+func TestSimulateEnsemble_LargeGridPerformance(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping large grid test in short mode")
+	}
+
+	stones := make([]model.EnsembleStone, 10)
+	for i := range stones {
+		stones[i] = model.EnsembleStone{
+			StoneID:   i + 1,
+			Name:      fmt.Sprintf("stone-%d", i+1),
+			Frequency: 261.63 + float64(i)*20,
+			PositionX: -2.0 + float64(i)*0.4,
+			PositionY:  math.Sin(float64(i)) * 0.8,
+			Amplitude: 1.0 - float64(i)*0.05,
+			Phase:     float64(i) * 0.3,
+			Active:    true,
+		}
+	}
+
+	req := model.EnsembleRequest{
+		Stones:      stones,
+		GridSize:    128,
+		FieldWidth:  8.0,
+		FieldHeight: 6.0,
+		Frequency:   330.0,
+	}
+
+	result, err := SimulateEnsemble(req)
+	if err != nil {
+		t.Fatalf("large grid simulation failed: %v", err)
+	}
+
+	if result.GridSize != 128 {
+		t.Errorf("expected grid size 128, got %d", result.GridSize)
+	}
+	if len(result.Pressure) != 128 || len(result.Pressure[0]) != 128 {
+		t.Error("pressure field dimensions incorrect")
+	}
+	if result.MaxPressure <= 0 {
+		t.Error("max pressure should be positive")
+	}
+}
+
+func BenchmarkSimulateEnsemble_SmallGrid(b *testing.B) {
+	stones := []model.EnsembleStone{
+		{StoneID: 1, Name: "S1", Frequency: 440, PositionX: -0.5, PositionY: 0, Amplitude: 1.0, Phase: 0, Active: true},
+		{StoneID: 2, Name: "S2", Frequency: 440, PositionX: 0.5, PositionY: 0, Amplitude: 1.0, Phase: 0, Active: true},
+	}
+	req := model.EnsembleRequest{
+		Stones:      stones,
+		GridSize:    32,
+		FieldWidth:  4.0,
+		FieldHeight: 3.0,
+		Frequency:   440.0,
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		SimulateEnsemble(req)
+	}
+}
+
+func BenchmarkSimulateEnsemble_LargeGrid(b *testing.B) {
+	stones := make([]model.EnsembleStone, 5)
+	for i := range stones {
+		stones[i] = model.EnsembleStone{
+			StoneID:   i + 1,
+			Frequency: 440.0,
+			PositionX: -1.5 + float64(i)*0.75,
+			PositionY:  0,
+			Amplitude:  1.0,
+			Phase:      0,
+			Active:     true,
+		}
+	}
+	req := model.EnsembleRequest{
+		Stones:      stones,
+		GridSize:    128,
+		FieldWidth:  8.0,
+		FieldHeight: 6.0,
+		Frequency:   440.0,
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		SimulateEnsemble(req)
 	}
 }

@@ -128,6 +128,8 @@ type EraComparison struct {
 	DecayCurves   map[string][]float64 `json:"decay_curves"`
 	SpectrumComp  map[string][]float64 `json:"spectrum_comparison"`
 	TimbreDiff    map[string]float64 `json:"timbre_difference"`
+	Standard      string  `json:"reference_standard"`
+	RefFreq       float64 `json:"reference_frequency"`
 }
 
 type GlockenspielConfig struct {
