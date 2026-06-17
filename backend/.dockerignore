@@ -1,0 +1,11 @@
+.git
+.gitignore
+README.md
+*.exe
+*.dll
+*.so
+*.test
+vendor/
+tmp/
+test/
+vendor/

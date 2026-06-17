@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"time"
 
 	"bianqing-simulator/internal/channel"
 	"bianqing-simulator/internal/fem"
+	"bianqing-simulator/internal/metrics"
 	"bianqing-simulator/internal/model"
 	"bianqing-simulator/internal/repository"
 )
@@ -87,6 +89,7 @@ func (s *AcousticSimulator) Start(ctx context.Context) {
 
 func (s *AcousticSimulator) processRequest(msg channel.SimulationRequestMessage) {
 	req := msg.Request
+	start := time.Now()
 
 	stone, err := repository.GetStoneByID(req.StoneID)
 	if err != nil {
@@ -145,6 +148,10 @@ func (s *AcousticSimulator) processRequest(msg channel.SimulationRequestMessage)
 		msg.Err <- fmt.Errorf("failed to save simulation result for stone %d: %w", req.StoneID, err)
 		return
 	}
+
+	duration := time.Since(start).Seconds()
+	metrics.IncSimulation(req.StoneID)
+	metrics.ObserveSimDuration(duration)
 
 	msg.Result <- result
 }

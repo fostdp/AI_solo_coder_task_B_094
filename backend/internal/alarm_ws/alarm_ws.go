@@ -2,6 +2,7 @@ package alarm_ws
 
 import (
 	"bianqing-simulator/internal/channel"
+	"bianqing-simulator/internal/metrics"
 	"bianqing-simulator/internal/model"
 	"bianqing-simulator/internal/repository"
 	"context"
@@ -48,7 +49,9 @@ func (h *Hub) Run() {
 		case client := <-h.register:
 			h.mu.Lock()
 			h.clients[client] = true
+			count := len(h.clients)
 			h.mu.Unlock()
+			metrics.SetWSClientCount(count)
 
 		case client := <-h.unregister:
 			h.mu.Lock()
@@ -56,7 +59,9 @@ func (h *Hub) Run() {
 				delete(h.clients, client)
 				close(client.Send)
 			}
+			count := len(h.clients)
 			h.mu.Unlock()
+			metrics.SetWSClientCount(count)
 
 		case message := <-h.broadcast:
 			h.mu.RLock()
@@ -229,6 +234,7 @@ func (a *AlarmWS) Start(ctx context.Context) {
 					Message:        fmt.Sprintf("Pitch deviation %.2f cents exceeds threshold %.2f cents", reading.CentsDeviation, threshold),
 				}
 				if err := repository.InsertAlert(alert); err == nil {
+					metrics.IncAlert(reading.StoneID, "pitch_deviation")
 					a.Hub.Broadcast(model.WSMessage{Type: "alert", Data: alert})
 				}
 			}

@@ -2,6 +2,7 @@ package modbus_receiver
 
 import (
 	"bianqing-simulator/internal/channel"
+	"bianqing-simulator/internal/metrics"
 	"bianqing-simulator/internal/model"
 	"bianqing-simulator/internal/repository"
 	"context"
@@ -173,6 +174,8 @@ func (r *Receiver) collectReadings(ctx context.Context) {
 			log.Printf("modbus_receiver: failed to insert reading for stone %d: %v", stone.ID, err)
 			continue
 		}
+
+		metrics.IncSensorReading(stone.ID)
 
 		msg := channel.SensorReadingMessage{Reading: reading}
 

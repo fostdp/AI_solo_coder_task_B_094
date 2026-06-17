@@ -6,6 +6,7 @@ import (
 	"bianqing-simulator/internal/channel"
 	"bianqing-simulator/internal/config"
 	"bianqing-simulator/internal/handler"
+	"bianqing-simulator/internal/middleware"
 	"bianqing-simulator/internal/modbus_receiver"
 	"bianqing-simulator/internal/repository"
 	"bianqing-simulator/internal/tuning_optimizer"
@@ -17,7 +18,10 @@ import (
 	"syscall"
 	"time"
 
+	_ "net/http/pprof"
+
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func main() {
@@ -67,6 +71,15 @@ func main() {
 		}
 	}()
 
+	go func() {
+		mux := http.DefaultServeMux
+		mux.Handle("/metrics", promhttp.Handler())
+		log.Printf("Debug server starting on :6060 (pprof + metrics)")
+		if err := http.ListenAndServe(":6060", mux); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Debug server failed: %v", err)
+		}
+	}()
+
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
@@ -87,6 +100,7 @@ func main() {
 func setupRouter(hub *alarm_ws.Hub) *gin.Engine {
 	router := gin.Default()
 
+	router.Use(middleware.PrometheusMiddleware())
 	router.Use(corsMiddleware())
 
 	api := router.Group("/api")

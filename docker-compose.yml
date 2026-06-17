@@ -1,0 +1,126 @@
+version: '3.8'
+
+services:
+  timescaledb:
+    image: timescale/timescaledb:latest-pg15
+    container_name: bianqing-timescaledb
+    environment:
+      - POSTGRES_DB=bianqing
+      - POSTGRES_USER=bianqing
+      - POSTGRES_PASSWORD=bianqing123
+      - TZ=Asia/Shanghai
+    ports:
+      - "5432:5432"
+    volumes:
+      - timescale_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bianqing -d bianqing"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bianqing-net
+
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    container_name: bianqing-mosquitto
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_log:/mosquitto/log
+    healthcheck:
+      test: ["CMD", "mosquitto_sub", "-t", "$SYS/broker/clients/total", "-C", "1", "-W", "3"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bianqing-net
+
+  mqtt-simulator:
+    build:
+      context: ./simulator
+      dockerfile: Dockerfile
+    container_name: bianqing-mqtt-simulator
+    environment:
+      - MQTT_HOST=mosquitto
+      - MQTT_PORT=1883
+      - MQTT_TOPIC_PREFIX=bianqing
+      - SIMULATOR_INTERVAL=60
+      - STONE_CONFIG=/app/stone_config.json
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    volumes:
+      - ./simulator/stone_config.json:/app/stone_config.json:ro
+    networks:
+      - bianqing-net
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: bianqing-backend
+    environment:
+      - DATABASE_URL=postgres://bianqing:bianqing123@timescaledb:5432/bianqing?sslmode=disable
+      - SERVER_PORT=:8080
+      - MQTT_BROKER=mosquitto:1883
+      - MQTT_TOPIC=bianqing/sensor/#
+      - TZ=Asia/Shanghai
+    ports:
+      - "8080:8080"
+      - "6060:6060"
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      mosquitto:
+        condition: service_healthy
+    volumes:
+      - ./backend/configs:/app/configs:ro
+    networks:
+      - bianqing-net
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: bianqing-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - bianqing-net
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: bianqing-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+    depends_on:
+      - backend
+    networks:
+      - bianqing-net
+    restart: unless-stopped
+
+volumes:
+  timescale_data:
+  mosquitto_data:
+  mosquitto_log:
+  prometheus_data:
+
+networks:
+  bianqing-net:
+    driver: bridge

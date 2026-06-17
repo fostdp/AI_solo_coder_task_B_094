@@ -4,6 +4,7 @@ import (
 	"bianqing-simulator/internal/acoustic_simulator"
 	"bianqing-simulator/internal/channel"
 	"bianqing-simulator/internal/fem"
+	"bianqing-simulator/internal/metrics"
 	"bianqing-simulator/internal/model"
 	"bianqing-simulator/internal/optimizer"
 	"bianqing-simulator/internal/repository"
@@ -11,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"time"
 )
 
 type OptimizerSystemConfig struct {
@@ -92,6 +94,8 @@ func (t *TuningOptimizer) Start(ctx context.Context) {
 }
 
 func (t *TuningOptimizer) StartOptimization(req model.OptimizationRequest) (*model.OptimizationRecord, error) {
+	start := time.Now()
+
 	stone, err := repository.GetStoneByID(req.StoneID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get stone %d: %w", req.StoneID, err)
@@ -166,6 +170,10 @@ func (t *TuningOptimizer) StartOptimization(req model.OptimizationRequest) (*mod
 	if err := repository.InsertOptimizationRecord(record); err != nil {
 		return nil, fmt.Errorf("failed to save optimization record: %w", err)
 	}
+
+	duration := time.Since(start).Seconds()
+	metrics.IncOptimization(req.StoneID)
+	metrics.ObserveOptDuration(duration)
 
 	return record, nil
 }

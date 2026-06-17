@@ -1,0 +1,110 @@
+[
+  {
+    "id": 1,
+    "name": "上1号",
+    "target_freq": 261.63,
+    "length_mm": 480,
+    "width_mm": 160,
+    "thickness_mm": 28,
+    "density": 2650.0
+  },
+  {
+    "id": 2,
+    "name": "上2号",
+    "target_freq": 293.66,
+    "length_mm": 455,
+    "width_mm": 155,
+    "thickness_mm": 26,
+    "density": 2650.0
+  },
+  {
+    "id": 3,
+    "name": "上3号",
+    "target_freq": 329.63,
+    "length_mm": 430,
+    "width_mm": 150,
+    "thickness_mm": 24,
+    "density": 2650.0
+  },
+  {
+    "id": 4,
+    "name": "上4号",
+    "target_freq": 349.23,
+    "length_mm": 415,
+    "width_mm": 148,
+    "thickness_mm": 23,
+    "density": 2650.0
+  },
+  {
+    "id": 5,
+    "name": "上5号",
+    "target_freq": 392.00,
+    "length_mm": 390,
+    "width_mm": 145,
+    "thickness_mm": 22,
+    "density": 2650.0
+  },
+  {
+    "id": 6,
+    "name": "上6号",
+    "target_freq": 440.00,
+    "length_mm": 365,
+    "width_mm": 140,
+    "thickness_mm": 20,
+    "density": 2650.0
+  },
+  {
+    "id": 7,
+    "name": "下1号",
+    "target_freq": 493.88,
+    "length_mm": 340,
+    "width_mm": 135,
+    "thickness_mm": 19,
+    "density": 2650.0
+  },
+  {
+    "id": 8,
+    "name": "下2号",
+    "target_freq": 523.25,
+    "length_mm": 325,
+    "width_mm": 132,
+    "thickness_mm": 18,
+    "density": 2650.0
+  },
+  {
+    "id": 9,
+    "name": "下3号",
+    "target_freq": 587.33,
+    "length_mm": 300,
+    "width_mm": 128,
+    "thickness_mm": 17,
+    "density": 2650.0
+  },
+  {
+    "id": 10,
+    "name": "下4号",
+    "target_freq": 659.25,
+    "length_mm": 280,
+    "width_mm": 125,
+    "thickness_mm": 16,
+    "density": 2650.0
+  },
+  {
+    "id": 11,
+    "name": "下5号",
+    "target_freq": 698.46,
+    "length_mm": 265,
+    "width_mm": 122,
+    "thickness_mm": 15,
+    "density": 2650.0
+  },
+  {
+    "id": 12,
+    "name": "下6号",
+    "target_freq": 783.99,
+    "length_mm": 245,
+    "width_mm": 120,
+    "thickness_mm": 14,
+    "density": 2650.0
+  }
+]
