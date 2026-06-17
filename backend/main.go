@@ -1,11 +1,14 @@
 package main
 
 import (
+	"bianqing-simulator/internal/acoustic_simulator"
+	"bianqing-simulator/internal/alarm_ws"
+	"bianqing-simulator/internal/channel"
 	"bianqing-simulator/internal/config"
 	"bianqing-simulator/internal/handler"
-	"bianqing-simulator/internal/modbus"
+	"bianqing-simulator/internal/modbus_receiver"
 	"bianqing-simulator/internal/repository"
-	"bianqing-simulator/internal/websocket"
+	"bianqing-simulator/internal/tuning_optimizer"
 	"context"
 	"log"
 	"net/http"
@@ -24,16 +27,31 @@ func main() {
 	}
 	defer repository.CloseDB()
 
-	hub := websocket.NewHub()
+	sensorCh := make(chan channel.SensorReadingMessage, 256)
+	alertSensorCh := make(chan channel.SensorReadingMessage, 256)
+	simReqCh := make(chan channel.SimulationRequestMessage, 64)
+	optReqCh := make(chan channel.OptimizationRequestMessage, 64)
+	progressCh := make(chan channel.OptimizationProgressMessage, 256)
+
+	hub := alarm_ws.NewHub()
 	go hub.Run()
 
-	handler.SetOptimizationHub(hub)
-
-	simulator := modbus.NewSimulator(hub)
+	receiver := modbus_receiver.NewReceiver(sensorCh, alertSensorCh)
+	sim := acoustic_simulator.NewAcousticSimulator(simReqCh)
+	opt := tuning_optimizer.NewTuningOptimizer(optReqCh, progressCh, sim)
+	alarm := alarm_ws.NewAlarmWS(alertSensorCh, progressCh, hub)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	go simulator.Start(ctx)
+
+	go receiver.Start(ctx)
+	go sim.Start(ctx)
+	go opt.Start(ctx)
+	go alarm.Start(ctx)
+
+	handler.SetAcousticSimulator(sim)
+	handler.SetTuningOptimizer(opt)
+	handler.SetHub(hub)
 
 	router := setupRouter(hub)
 
@@ -66,7 +84,7 @@ func main() {
 	log.Println("Server exited")
 }
 
-func setupRouter(hub *websocket.Hub) *gin.Engine {
+func setupRouter(hub *alarm_ws.Hub) *gin.Engine {
 	router := gin.Default()
 
 	router.Use(corsMiddleware())
@@ -111,7 +129,7 @@ func setupRouter(hub *websocket.Hub) *gin.Engine {
 	}
 
 	router.GET("/ws", func(c *gin.Context) {
-		websocket.ServeWS(hub, c)
+		alarm_ws.ServeWS(hub, c)
 	})
 
 	return router

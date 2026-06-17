@@ -1,0 +1,26 @@
+{
+  "fem": {
+    "default_mesh_nx": 30,
+    "default_mesh_ny": 15,
+    "min_mesh_divisions": 4,
+    "num_modes": 6,
+    "boundary_type": "free",
+    "boundary_layer_width_ratio": 0.15,
+    "boundary_correction_factors": {
+      "1_1": 0.78,
+      "2_1": 0.72,
+      "1_2": 0.75,
+      "2_2": 0.68
+    },
+    "high_mode_base": 0.65,
+    "high_mode_decay": 0.25,
+    "aspect_ratio_threshold": 2.0,
+    "aspect_ratio_correction": 0.95
+  },
+  "frequency_analysis": {
+    "sample_rate": 8000,
+    "fft_bins": 64,
+    "harmonic_count": 8,
+    "spectral_bandwidth": 15.0
+  }
+}

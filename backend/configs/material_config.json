@@ -1,0 +1,32 @@
+{
+  "limestone": {
+    "name": "石灰岩",
+    "elastic_modulus": 5.0e10,
+    "poisson_ratio": 0.25,
+    "default_density": 2650.0
+  },
+  "marble": {
+    "name": "大理岩",
+    "elastic_modulus": 6.0e10,
+    "poisson_ratio": 0.27,
+    "default_density": 2710.0
+  },
+  "granite": {
+    "name": "花岗岩",
+    "elastic_modulus": 5.5e10,
+    "poisson_ratio": 0.23,
+    "default_density": 2650.0
+  },
+  "sandstone": {
+    "name": "砂岩",
+    "elastic_modulus": 1.5e10,
+    "poisson_ratio": 0.20,
+    "default_density": 2300.0
+  },
+  "bluestone": {
+    "name": "青石",
+    "elastic_modulus": 7.0e10,
+    "poisson_ratio": 0.25,
+    "default_density": 2750.0
+  }
+}

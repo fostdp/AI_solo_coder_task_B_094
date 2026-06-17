@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAppStore } from '../store/appStore'
 import { fetchSimulationResult } from '../utils/api'
-import Bianqing3D from '../components/Bianqing3D'
+import Bianqing3D from '../components/bianqing_3d'
 import SoundRadiationCanvas from '../components/SoundRadiationCanvas'
 
 function VisualizationPage() {
