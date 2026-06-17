@@ -1,0 +1,137 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-deep-indigo: #1a1a2e;
+  --color-dark-indigo: #16213e;
+  --color-bronze: #c9a96e;
+  --color-bronze-dark: #a68b52;
+  --color-vermilion: #c84b31;
+  --color-jade: #2d6a4f;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+}
+
+body {
+  font-family: 'Noto Sans SC', sans-serif;
+  background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #16213e 100%);
+  color: #e8e6e3;
+  overflow-x: hidden;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Noto Serif SC', serif;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(26, 26, 46, 0.5);
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c9a96e;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #d4b87a;
+}
+
+/* Animations */
+@keyframes pulse-alert {
+  0%, 100% {
+    box-shadow: 0 0 5px rgba(200, 75, 49, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(200, 75, 49, 0.9);
+  }
+}
+
+.alert-pulse {
+  animation: pulse-alert 1.5s ease-in-out infinite;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.fade-in {
+  animation: fadeIn 0.5s ease-out forwards;
+}
+
+@keyframes bronze-glow {
+  0%, 100% {
+    box-shadow: 0 0 10px rgba(201, 169, 110, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(201, 169, 110, 0.6);
+  }
+}
+
+.bronze-glow {
+  animation: bronze-glow 3s ease-in-out infinite;
+}
+
+.card-bronze {
+  background: linear-gradient(145deg, rgba(26, 26, 46, 0.9) 0%, rgba(22, 33, 62, 0.9) 100%);
+  border: 1px solid rgba(201, 169, 110, 0.3);
+  border-radius: 8px;
+  backdrop-filter: blur(10px);
+}
+
+.card-bronze:hover {
+  border-color: rgba(201, 169, 110, 0.6);
+  box-shadow: 0 0 20px rgba(201, 169, 110, 0.2);
+}
+
+.btn-bronze {
+  background: linear-gradient(145deg, #c9a96e, #a68b52);
+  color: #1a1a2e;
+  border: none;
+  padding: 8px 20px;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-bronze:hover {
+  box-shadow: 0 0 15px rgba(201, 169, 110, 0.5);
+  transform: translateY(-1px);
+}
+
+.btn-bronze:active {
+  transform: translateY(0);
+}
+
+.btn-outline-bronze {
+  background: transparent;
+  color: #c9a96e;
+  border: 1px solid #c9a96e;
+  padding: 7px 19px;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-outline-bronze:hover {
+  background: rgba(201, 169, 110, 0.1);
+  box-shadow: 0 0 10px rgba(201, 169, 110, 0.3);
+}
