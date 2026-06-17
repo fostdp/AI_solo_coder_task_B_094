@@ -3,10 +3,16 @@ package handler
 import (
 	"bianqing-simulator/internal/acoustic_simulator"
 	"bianqing-simulator/internal/alarm_ws"
+	"bianqing-simulator/internal/ancient_scores"
+	"bianqing-simulator/internal/ensemble_acoustics"
+	"bianqing-simulator/internal/era_comparison"
+	"bianqing-simulator/internal/material_comparison"
 	"bianqing-simulator/internal/model"
 	"bianqing-simulator/internal/repository"
 	"bianqing-simulator/internal/tuning_optimizer"
+	"encoding/json"
 	"net/http"
+	"os"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -333,4 +339,139 @@ func GetActiveAlerts(c *gin.Context) {
 		alerts = []model.Alert{}
 	}
 	c.JSON(http.StatusOK, alerts)
+}
+
+func GetAcousticConfig(c *gin.Context) {
+	data, err := os.ReadFile("configs/acoustic_config.json")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	var config map[string]interface{}
+	json.Unmarshal(data, &config)
+	c.JSON(http.StatusOK, config)
+}
+
+func GetMaterialConfig(c *gin.Context) {
+	data, err := os.ReadFile("configs/material_config.json")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	var config map[string]interface{}
+	json.Unmarshal(data, &config)
+	c.JSON(http.StatusOK, config)
+}
+
+func GetSystemConfig(c *gin.Context) {
+	data, err := os.ReadFile("configs/system_config.json")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	var config map[string]interface{}
+	json.Unmarshal(data, &config)
+	c.JSON(http.StatusOK, config)
+}
+
+func GetMaterialList(c *gin.Context) {
+	list := material_comparison.GetMaterialList()
+	c.JSON(http.StatusOK, list)
+}
+
+func CompareMaterials(c *gin.Context) {
+	var req model.MaterialComparisonRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if req.StoneID <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "stone_id is required"})
+		return
+	}
+
+	result, err := material_comparison.CompareMaterials(req)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+
+func GetStrikeParams(c *gin.Context) {
+	material := c.Query("material")
+	freq, err := strconv.ParseFloat(c.Query("frequency"), 64)
+	if err != nil {
+		freq = 440.0
+	}
+	if material == "" {
+		material = "limestone"
+	}
+
+	params := material_comparison.GetStrikeParams(material, freq)
+	c.JSON(http.StatusOK, params)
+}
+
+func CompareEras(c *gin.Context) {
+	var req model.EraComparisonRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if req.StoneID <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "stone_id is required"})
+		return
+	}
+
+	result, err := era_comparison.CompareEras(req)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+
+func GetGlockenspielConfig(c *gin.Context) {
+	config := era_comparison.GetGlockenspielConfig()
+	c.JSON(http.StatusOK, config)
+}
+
+func GetDefaultEnsemble(c *gin.Context) {
+	req := ensemble_acoustics.GetDefaultEnsemble()
+	c.JSON(http.StatusOK, req)
+}
+
+func SimulateEnsemble(c *gin.Context) {
+	var req model.EnsembleRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	result, err := ensemble_acoustics.SimulateEnsemble(req)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+
+func GetScoreList(c *gin.Context) {
+	scores := ancient_scores.GetScoreList()
+	c.JSON(http.StatusOK, scores)
+}
+
+func GetScore(c *gin.Context) {
+	id := c.Param("id")
+	score, err := ancient_scores.GetScoreByID(id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, score)
 }

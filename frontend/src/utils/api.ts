@@ -104,3 +104,93 @@ export async function fetchActiveAlerts() {
   if (!res.ok) throw new Error('Failed to fetch active alerts')
   return res.json()
 }
+
+export async function fetchMaterialList() {
+  const res = await fetch(`${API_BASE}/comparison/materials`)
+  if (!res.ok) throw new Error('Failed to fetch material list')
+  return res.json()
+}
+
+export async function compareMaterials(body: { stone_id: number; materials: string[] }) {
+  const res = await fetch(`${API_BASE}/comparison/materials`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error('Failed to compare materials')
+  return res.json()
+}
+
+export async function fetchStrikeParams(material: string, frequency: number) {
+  const res = await fetch(`${API_BASE}/comparison/strike-params?material=${material}&frequency=${frequency}`)
+  if (!res.ok) throw new Error('Failed to fetch strike params')
+  return res.json()
+}
+
+export async function compareEras(body: { stone_id: number; include_modern: boolean; modern_type: string }) {
+  const res = await fetch(`${API_BASE}/era/compare`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error('Failed to compare eras')
+  return res.json()
+}
+
+export async function fetchGlockenspielConfig() {
+  const res = await fetch(`${API_BASE}/era/glockenspiel-config`)
+  if (!res.ok) throw new Error('Failed to fetch glockenspiel config')
+  return res.json()
+}
+
+export async function fetchDefaultEnsemble() {
+  const res = await fetch(`${API_BASE}/ensemble/default`)
+  if (!res.ok) throw new Error('Failed to fetch default ensemble')
+  return res.json()
+}
+
+export async function simulateEnsemble(body: {
+  stones: any[]
+  grid_size: number
+  field_width: number
+  field_height: number
+  frequency: number
+}) {
+  const res = await fetch(`${API_BASE}/ensemble/simulate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error('Failed to simulate ensemble')
+  return res.json()
+}
+
+export async function fetchScoreList() {
+  const res = await fetch(`${API_BASE}/scores`)
+  if (!res.ok) throw new Error('Failed to fetch score list')
+  return res.json()
+}
+
+export async function fetchScore(id: string) {
+  const res = await fetch(`${API_BASE}/scores/${id}`)
+  if (!res.ok) throw new Error('Failed to fetch score')
+  return res.json()
+}
+
+export async function fetchAcousticConfig() {
+  const res = await fetch(`${API_BASE}/configs/acoustic`)
+  if (!res.ok) throw new Error('Failed to fetch acoustic config')
+  return res.json()
+}
+
+export async function fetchMaterialConfig() {
+  const res = await fetch(`${API_BASE}/configs/material`)
+  if (!res.ok) throw new Error('Failed to fetch material config')
+  return res.json()
+}
+
+export async function fetchSystemConfig() {
+  const res = await fetch(`${API_BASE}/configs/system`)
+  if (!res.ok) throw new Error('Failed to fetch system config')
+  return res.json()
+}

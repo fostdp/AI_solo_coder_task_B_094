@@ -140,6 +140,38 @@ func setupRouter(hub *alarm_ws.Hub) *gin.Engine {
 			alerts.GET("", handler.GetAlerts)
 			alerts.GET("/active", handler.GetActiveAlerts)
 		}
+
+		configs := api.Group("/configs")
+		{
+			configs.GET("/acoustic", handler.GetAcousticConfig)
+			configs.GET("/material", handler.GetMaterialConfig)
+			configs.GET("/system", handler.GetSystemConfig)
+		}
+
+		comparison := api.Group("/comparison")
+		{
+			comparison.GET("/materials", handler.GetMaterialList)
+			comparison.POST("/materials", handler.CompareMaterials)
+			comparison.GET("/strike-params", handler.GetStrikeParams)
+		}
+
+		era := api.Group("/era")
+		{
+			era.POST("/compare", handler.CompareEras)
+			era.GET("/glockenspiel-config", handler.GetGlockenspielConfig)
+		}
+
+		ensemble := api.Group("/ensemble")
+		{
+			ensemble.GET("/default", handler.GetDefaultEnsemble)
+			ensemble.POST("/simulate", handler.SimulateEnsemble)
+		}
+
+		scores := api.Group("/scores")
+		{
+			scores.GET("", handler.GetScoreList)
+			scores.GET("/:id", handler.GetScore)
+		}
 	}
 
 	router.GET("/ws", func(c *gin.Context) {

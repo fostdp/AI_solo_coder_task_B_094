@@ -5,6 +5,10 @@ const menuItems = [
   { path: '/', label: '编磬可视化', icon: '🎵' },
   { path: '/dashboard', label: '实时监测', icon: '📊' },
   { path: '/simulation', label: '仿真调音', icon: '⚙️' },
+  { path: '/material-comparison', label: '石料对比', icon: '🪨' },
+  { path: '/era-comparison', label: '跨时代对比', icon: '⏳' },
+  { path: '/ensemble', label: '合奏模拟', icon: '🎼' },
+  { path: '/performance', label: '虚拟演奏', icon: '🎹' },
 ]
 
 function Sidebar() {

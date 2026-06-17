@@ -8,6 +8,10 @@ import AlertBanner from './components/AlertBanner'
 import VisualizationPage from './pages/VisualizationPage'
 import DashboardPage from './pages/DashboardPage'
 import SimulationPage from './pages/SimulationPage'
+import MaterialComparisonPage from './pages/MaterialComparisonPage'
+import EraComparisonPage from './pages/EraComparisonPage'
+import EnsemblePage from './pages/EnsemblePage'
+import PerformancePage from './pages/PerformancePage'
 
 function App() {
   useWebSocket()
@@ -49,6 +53,10 @@ function App() {
             <Route path="/" element={<VisualizationPage />} />
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/simulation" element={<SimulationPage />} />
+            <Route path="/material-comparison" element={<MaterialComparisonPage />} />
+            <Route path="/era-comparison" element={<EraComparisonPage />} />
+            <Route path="/ensemble" element={<EnsemblePage />} />
+            <Route path="/performance" element={<PerformancePage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
